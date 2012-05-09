@@ -1,6 +1,6 @@
 # Copyright (c) 2012 Piston Cloud Computing, Inc.
 
-module Bosh::OpenStackCloud
+module Bosh::OcciCloud
   ##
   #
   class VipNetwork < Network
@@ -16,6 +16,11 @@ module Bosh::OpenStackCloud
 
     ##
     # Configures vip network
+    # Here we need to issue an OCCI request for the allocation of
+    # a floating IP. 
+    # See: http://wiki.openstack.org/occi#Allocate_Floating_IP_to_VM
+    # The Fog client is used to interact with OpenStack.
+    # Something similar is needed for OCCI
     #
     # @param [Fog::Compute::OpenStack] openstack Fog OpenStack Compute client
     # @param [Fog::Compute::OpenStack::Server] server OpenStack server to configure

@@ -1,6 +1,6 @@
 # Copyright (c) 2012 Piston Cloud Computing, Inc.
 
-module Bosh::OpenStackCloud
+module Bosh::OcciCloud
   ##
   #
   class Network

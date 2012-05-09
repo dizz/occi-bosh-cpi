@@ -1,5 +1,7 @@
 # Copyright (c) 2012 Piston Cloud Computing, Inc.
 
+# No change for OCCI
+
 module Bosh::OpenStackCloud
   class RegistryClient
     include Helpers

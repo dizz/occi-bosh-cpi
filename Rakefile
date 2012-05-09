@@ -1,4 +1,5 @@
 # Copyright (c) 2012 Piston Cloud Computing, Inc.
+# Copyright (c) 2012 ZHAW
 
 $:.unshift(File.expand_path("../../rake", __FILE__))
 

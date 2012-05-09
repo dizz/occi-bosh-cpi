@@ -1,6 +1,9 @@
 # Copyright (c) 2012 Piston Cloud Computing, Inc.
+# Copyright (c) 2012 ZHAW.
 
-module Bosh::OpenStackCloud
+# Main driver of resource creation (VMs)
+
+module Bosh::OcciCloud
 
   class Cloud < Bosh::Cloud
     include Helpers
@@ -13,7 +16,7 @@ module Bosh::OpenStackCloud
     attr_reader :registry
 
     ##
-    # Initialize BOSH OpenStack CPI
+    # Initialise BOSH OCCI CPI
     # @param [Hash] options CPI options
     #
     def initialize(options)
@@ -37,6 +40,9 @@ module Bosh::OpenStackCloud
         :openstack_api_key => @openstack_properties["api_key"],
         :openstack_tenant => @openstack_properties["tenant"]
       }
+      
+      #TODO: this client needs to be replaced by an OCCI variant
+      #      or OCCI is baked into Fog
       @openstack = Fog::Compute.new(openstack_params)
 
       registry_endpoint = @registry_properties["endpoint"]
@@ -50,7 +56,7 @@ module Bosh::OpenStackCloud
     end
 
     ##
-    # Creates a new OpenStack Image using stemcell image.
+    # Creates an OCCI OsTemplate using the stemcell OsTemplate
     # This method can only be run on an OpenStack server, as image creation
     # involves creating and mounting a new OpenStack volume as local block device.
     # @param [String] image_path local filesystem path to a stemcell image

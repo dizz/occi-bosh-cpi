@@ -1,6 +1,6 @@
 # Copyright (c) 2012 Piston Cloud Computing, Inc.
 
-module Bosh::OpenStackCloud
+module Bosh::OcciCloud
   ##
   # Represents OpenStack server network config. OpenStack server has single NIC
   # with dynamic IP address and (optionally) a single floating IP address

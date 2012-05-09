@@ -1,4 +1,5 @@
 # Copyright (c) 2012 Piston Cloud Computing, Inc.
+# Copyright (c) 2012 ZHAW
 
 source :rubygems
 gemspec

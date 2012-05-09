@@ -1,5 +1,7 @@
 # Copyright (c) 2012 Piston Cloud Computing, Inc.
 
+# No change needed here for OCCI. This implements a polling check.
+
 module Bosh::OpenStackCloud
 
   module Helpers

@@ -1,3 +1,4 @@
+# Copyright (c) 2012 ZHAW.
 
 module Bosh
   module OcciCloud; end
