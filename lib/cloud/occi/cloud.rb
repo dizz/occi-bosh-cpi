@@ -6,7 +6,8 @@
 module Bosh::OcciCloud
 
   class Cloud < Bosh::Cloud
-    include Helpers
+    # include Helpers
+    include Bosh::OpenStackCloud::Helpers
 
     DEFAULT_AVAILABILITY_ZONE = "nova"
     DEVICE_POLL_TIMEOUT = 60 # seconds
@@ -594,7 +595,7 @@ module Bosh::OcciCloud
           @options["occi"].is_a?(Hash) &&
           @options["occi"]["token"] &&
           @options["occi"]["user"] &&
-          @options["occi"]["tenant"] &&
+          @options["occi"]["tenant"]
         raise ArgumentError, "Invalid OCCI configuration parameters"
       end
 

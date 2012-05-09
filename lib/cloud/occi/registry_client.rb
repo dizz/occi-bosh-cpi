@@ -4,7 +4,7 @@
 
 module Bosh::OpenStackCloud
   class RegistryClient
-    include Helpers
+    include Bosh::OpenStackCloud::Helpers
 
     attr_reader :endpoint
     attr_reader :user

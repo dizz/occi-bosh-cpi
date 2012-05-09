@@ -10,7 +10,7 @@ module Bosh::OcciCloud
   # deal with.
   #
   class NetworkConfigurator
-    include Helpers
+    include Bosh::OpenStackCloud::Helpers
 
     ##
     # Creates new network spec

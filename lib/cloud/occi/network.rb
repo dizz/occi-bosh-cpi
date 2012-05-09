@@ -4,7 +4,7 @@ module Bosh::OcciCloud
   ##
   #
   class Network
-    include Helpers
+    include Bosh::OpenStackCloud::Helpers
 
     ##
     # Creates a new network
