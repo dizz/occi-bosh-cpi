@@ -66,6 +66,10 @@ module Bosh::OcciCloud
       else
         # If there is no vip network we should disassociate any floating IP
         # currently held by server (as it might have had floating IP before)
+        
+        # This is implemented in OCCI as shown here:
+        # http://wiki.openstack.org/occi#Deallocate_Floating_IP_to_VM
+        
         addresses = openstack.addresses
         addresses.each do |address|
           if address.instance_id == server.id
@@ -92,6 +96,8 @@ module Bosh::OcciCloud
     end
 
     ##
+    # To do this in OCCI list the groups registered in the QI
+    # See: http://wiki.openstack.org/occi#List_Security_Groups
     # Extracts the security groups from the network configuration
     # @param [Hash] network_spec Network specification
     # @raise [ArgumentError] if the security groups in the network_spec

@@ -4,7 +4,11 @@ module Bosh
   module OcciCloud; end
 end
 
+# This needs to be replaced.
+# This is the OS client
 require "fog"
+#
+
 require "httpclient"
 require "pp"
 require "set"

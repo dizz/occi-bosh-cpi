@@ -13,6 +13,7 @@ module Bosh::OcciCloud
     METADATA_TIMEOUT = 5 # seconds
 
     attr_reader :openstack
+    attr_reader :occi
     attr_reader :registry
 
     ##
@@ -28,22 +29,33 @@ module Bosh::OcciCloud
 
       @agent_properties = @options["agent"] || {}
       @openstack_properties = @options["openstack"]
+      @occi_properties = @options["occi"]
       @registry_properties = @options["registry"]
 
+      # to use keys we'll need to use the related OCCI extensions
       @default_key_name = @openstack_properties["default_key_name"]
       @default_security_groups = @openstack_properties["default_security_groups"]
-
-      openstack_params = {
-        :provider => "OpenStack",
-        :openstack_auth_url => @openstack_properties["auth_url"],
-        :openstack_username => @openstack_properties["username"],
-        :openstack_api_key => @openstack_properties["api_key"],
-        :openstack_tenant => @openstack_properties["tenant"]
+      
+      # openstack_params = {
+        # :provider => "OpenStack",
+        # :openstack_auth_url => @openstack_properties["auth_url"],
+        # :openstack_username => @openstack_properties["username"],
+        # :openstack_api_key => @openstack_properties["api_key"],
+        # :openstack_tenant => @openstack_properties["tenant"]
+      # }
+      
+      occi_params = {
+        :provider => "OCCI",
+        :token => @openstack_properties["token"],
+        :user => @openstack_properties["user"],
+        :tenant => @openstack_properties["tenant"]
       }
       
       #TODO: this client needs to be replaced by an OCCI variant
       #      or OCCI is baked into Fog
-      @openstack = Fog::Compute.new(openstack_params)
+      @occi = None
+      # @openstack = Fog::Compute.new(openstack_params)
+
 
       registry_endpoint = @registry_properties["endpoint"]
       registry_user = @registry_properties["user"]
@@ -127,6 +139,7 @@ module Bosh::OcciCloud
 
     ##
     # Deletes a stemcell
+    # Currently there's no way to delete an OCCI-advertised image
     # @param [String] stemcell stemcell id that was once returned by {#create_stemcell}
     def delete_stemcell(stemcell_id)
       with_thread_name("delete_stemcell(#{stemcell_id})") do
@@ -137,7 +150,7 @@ module Bosh::OcciCloud
     end
 
     ##
-    # Creates an OpenStack server and waits until it's in running state
+    # Creates an OCCI compute resource and waits until it's in running state
     # @param [String] agent_id Agent id associated with new VM
     # @param [String] stemcell_id AMI id that will be used to power on new server
     # @param [Hash] resource_pool Resource pool specification
@@ -160,14 +173,15 @@ module Bosh::OcciCloud
 
         if disk_locality
           # TODO: use as hint for availability zones
-          @logger.debug("Disk locality is ignored by OpenStack CPI")
+          @logger.debug("Disk locality is ignored by OCCI CPI")
         end
 
         security_groups = network_configurator.security_groups(@default_security_groups)
         @logger.debug("using security groups: #{security_groups.join(', ')}")
 
+        # TODO List the QI for OsTemplates
         image_id = nil
-        images = @openstack.images
+        images = @occi.images
         images.each do |image|
           if image.name == stemcell_id
             image_id = image.id
@@ -178,6 +192,7 @@ module Bosh::OcciCloud
           cloud_error("OpenStack CPI: image #{stemcell_id} not found")
         end
 
+        # TODO List the QI for ResourceTemplates
         flavor_id = nil
         flavors = @openstack.flavors
         flavors.each do |flavor|
@@ -204,15 +219,16 @@ module Bosh::OcciCloud
           server_params[:availability_zone] = availability_zone
         end
 
+        # TODO POST to /compute
         @logger.info("Creating new server...")
-        server = @openstack.servers.create(server_params)
+        server = @occi.servers.create(server_params)
         state = server.state
 
         @logger.info("Creating new server `#{server.id}', state is `#{state}'")
         wait_resource(server, state, :active, :state)
 
         @logger.info("Configuring network for `#{server.id}'")
-        network_configurator.configure(@openstack, server)
+        network_configurator.configure(@occi, server)
 
         @logger.info("Updating server settings for `#{server.id}'")
         settings = initial_agent_settings(agent_id, network_spec, environment)
@@ -227,9 +243,10 @@ module Bosh::OcciCloud
     # @param [String] server_id Running OpenStack server id
     def delete_vm(server_id)
       with_thread_name("delete_vm(#{server_id})") do
-        server = @openstack.servers.get(server_id)
+        server = @occi.servers.get(server_id)
         state = server.state
-
+        
+        # TODO OCCI DELETE to compute URI
         @logger.info("Deleting server `#{server.id}', state is `#{state}'")
         server.destroy
         wait_resource(server, state, :terminated, :state)
@@ -244,6 +261,7 @@ module Bosh::OcciCloud
     # @param [String] server_id Running OpenStack server id
     def reboot_vm(server_id)
       with_thread_name("reboot_vm(#{server_id})") do
+        # TODO OCCI POST to action reboot
         server = @openstack.servers.get(server_id)
         soft_reboot(server)
       end
@@ -570,6 +588,14 @@ module Bosh::OcciCloud
           @options["openstack"]["api_key"] &&
           @options["openstack"]["tenant"]
         raise ArgumentError, "Invalid OpenStack configuration parameters"
+      end
+
+      unless @options.has_key?("occi") &&
+          @options["occi"].is_a?(Hash) &&
+          @options["occi"]["token"] &&
+          @options["occi"]["user"] &&
+          @options["occi"]["tenant"] &&
+        raise ArgumentError, "Invalid OCCI configuration parameters"
       end
 
       unless @options.has_key?("registry") &&
