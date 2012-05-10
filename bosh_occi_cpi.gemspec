@@ -19,8 +19,8 @@ Gem::Specification.new do |s|
   s.bindir       = "bin"
   s.executables  = %w(bosh_occi_console)
 
-  #Need an OCCI ruby client!
-  s.add_dependency "fog", ">=1.3.1"
+  # TODO Need an OCCI ruby client, GWDG possibly
+  # s.add_dependency "occi", ">=0.1"
   s.add_dependency "bosh_common", ">=0.4.0"
   s.add_dependency "bosh_cpi", ">=0.4.2"
   s.add_dependency "httpclient", ">=2.2.0"

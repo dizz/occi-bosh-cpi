@@ -4,9 +4,8 @@ module Bosh
   module OcciCloud; end
 end
 
-# This needs to be replaced.
-# This is the OS client
-require "fog"
+# TODO
+# require "occi"
 #
 
 require "httpclient"

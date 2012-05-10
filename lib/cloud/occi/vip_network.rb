@@ -22,9 +22,9 @@ module Bosh::OcciCloud
     # The Fog client is used to interact with OpenStack.
     # Something similar is needed for OCCI
     #
-    # @param [Fog::Compute::OpenStack] openstack Fog OpenStack Compute client
-    # @param [Fog::Compute::OpenStack::Server] server OpenStack server to configure
-    def configure(openstack, server)
+    # @param occi client
+    # @param occi compute instance
+    def configure(occi, server)
       if @ip.nil?
         cloud_error("No IP provided for vip network `#{@name}'")
       end
@@ -32,11 +32,11 @@ module Bosh::OcciCloud
       @logger.info("Associating instance `#{server.id}' " \
                    "with floating IP `#{@ip}'")
 
-      # Check if the OpenStack floating IP is allocated. If true, check
+      # Check if the OCCI floating IP is allocated. If true, check
       # if it is associated to any server, so we can disassociate it
       # before associating it to the new server.
       address_id = nil
-      addresses = openstack.addresses
+      addresses = occi.addresses
       addresses.each do |address|
         if address.ip == @ip
           address.disassociate unless address.instance_id.nil?
@@ -46,7 +46,7 @@ module Bosh::OcciCloud
         end
       end
       if address_id.nil?
-        cloud_error("OpenStack CPI: floating IP #{@ip} not allocated")
+        cloud_error("OCCI CPI: floating IP #{@ip} not allocated")
       end
     end
 

@@ -17,9 +17,9 @@ module Bosh::OcciCloud
 
     ##
     # Configures OCCI Network resources.
-    # @param [Fog::Compute::OpenStack] openstack Fog OpenStack Compute client
-    # @param [Fog::Compute::OpenStack::Server] server OpenStack server to configure
-    def configure(openstack, server)
+    # @param occi client
+    # @param occi compute instance
+    def configure(occi, server)
       cloud_error("`configure' not implemented by #{self.class}")
     end
 

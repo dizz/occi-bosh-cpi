@@ -13,7 +13,6 @@ module Bosh::OcciCloud
     DEVICE_POLL_TIMEOUT = 60 # seconds
     METADATA_TIMEOUT = 5 # seconds
 
-    attr_reader :openstack
     attr_reader :occi
     attr_reader :registry
 
@@ -29,34 +28,23 @@ module Bosh::OcciCloud
       @logger = Bosh::Clouds::Config.logger
 
       @agent_properties = @options["agent"] || {}
-      @openstack_properties = @options["openstack"]
       @occi_properties = @options["occi"]
       @registry_properties = @options["registry"]
 
       # to use keys we'll need to use the related OCCI extensions
-      @default_key_name = @openstack_properties["default_key_name"]
-      @default_security_groups = @openstack_properties["default_security_groups"]
-      
-      # openstack_params = {
-        # :provider => "OpenStack",
-        # :openstack_auth_url => @openstack_properties["auth_url"],
-        # :openstack_username => @openstack_properties["username"],
-        # :openstack_api_key => @openstack_properties["api_key"],
-        # :openstack_tenant => @openstack_properties["tenant"]
-      # }
+      @default_key_name = @occi_properties["default_key_name"]
+      @default_security_groups = @occi_properties["default_security_groups"]
       
       occi_params = {
         :provider => "OCCI",
-        :token => @openstack_properties["token"],
-        :user => @openstack_properties["user"],
-        :tenant => @openstack_properties["tenant"]
+        :token => @occi_properties["token"],
+        :user => @occi_properties["user"],
+        :tenant => @occi_properties["tenant"]
       }
       
       #TODO: this client needs to be replaced by an OCCI variant
       #      or OCCI is baked into Fog
       @occi = None
-      # @openstack = Fog::Compute.new(openstack_params)
-
 
       registry_endpoint = @registry_properties["endpoint"]
       registry_user = @registry_properties["user"]
@@ -70,8 +58,9 @@ module Bosh::OcciCloud
 
     ##
     # Creates an OCCI OsTemplate using the stemcell OsTemplate
-    # This method can only be run on an OpenStack server, as image creation
-    # involves creating and mounting a new OpenStack volume as local block device.
+    # This method can only be run on an compute instance, as image creation
+    # involves creating and mounting a new occi volume instance
+    # as local block device.
     # @param [String] image_path local filesystem path to a stemcell image
     # @param [Hash] cloud_properties CPI-specific properties
     def create_stemcell(image_path, cloud_properties)
@@ -82,16 +71,19 @@ module Bosh::OcciCloud
           server = nil
           volume = nil
 
-          # 1. Create and mount new OpenStack volume (2GB default)
+          # 1. Create and mount new volume (2GB default)
           disk_size = cloud_properties["disk"] || 2048
+          
+          # reading metadata is ec2/openstack specific!
+          
           volume_id = create_disk(disk_size, current_instance_id)
-          volume = @openstack.volumes.get(volume_id)
-          server = @openstack.servers.get(current_instance_id)
+          volume = @occi.volumes.get(volume_id)
+          server = @occi.servers.get(current_instance_id)
 
           vd_name = attach_volume(server, volume)
           device_name = find_device(vd_name)
 
-          # 2. Copy image to new OpenStack volume
+          # 2. Copy image to new volume
           Dir.mktmpdir do |tmp_dir|
             @logger.info("Extracting stemcell to `#{tmp_dir}'")
 
@@ -117,7 +109,7 @@ module Bosh::OcciCloud
             }
 
             @logger.info("Creating new image...")
-            image = @openstack.images.create(image_params)
+            image = @occi.images.create(image_params)
             state = image.status
 
             @logger.info("Creating new image `#{image.id}', state is `#{state}'")
@@ -145,7 +137,7 @@ module Bosh::OcciCloud
     def delete_stemcell(stemcell_id)
       with_thread_name("delete_stemcell(#{stemcell_id})") do
         @logger.info("Deleting `#{stemcell_id}' stemcell")
-        image = @openstack.images.get(stemcell_id)
+        image = @occi.images.get(stemcell_id)
         image.destroy
       end
     end
@@ -190,12 +182,12 @@ module Bosh::OcciCloud
           end
         end
         if image_id.nil?
-          cloud_error("OpenStack CPI: image #{stemcell_id} not found")
+          cloud_error("OCCI CPI: image #{stemcell_id} not found")
         end
 
         # TODO List the QI for ResourceTemplates
         flavor_id = nil
-        flavors = @openstack.flavors
+        flavors = @occi.flavors
         flavors.each do |flavor|
           if flavor.name == resource_pool["instance_type"]
             flavor_id = flavor.id
@@ -203,7 +195,7 @@ module Bosh::OcciCloud
           end
         end
         if flavor_id.nil?
-          cloud_error("OpenStack CPI: flavor #{resource_pool["instance_type"]} not found")
+          cloud_error("OCCI CPI: flavor #{resource_pool["instance_type"]} not found")
         end
 
         server_params = {
@@ -240,8 +232,8 @@ module Bosh::OcciCloud
     end
 
     ##
-    # Terminates an OpenStack server and waits until it reports as terminated
-    # @param [String] server_id Running OpenStack server id
+    # Terminates a compute instance and waits until it reports as terminated
+    # @param [String] server_id Running OCCI server id
     def delete_vm(server_id)
       with_thread_name("delete_vm(#{server_id})") do
         server = @occi.servers.get(server_id)
@@ -258,28 +250,28 @@ module Bosh::OcciCloud
     end
 
     ##
-    # Reboots an OpenStack Server
-    # @param [String] server_id Running OpenStack server id
+    # Reboots a compute instance
+    # @param [String] server_id Running OCCI server id
     def reboot_vm(server_id)
       with_thread_name("reboot_vm(#{server_id})") do
         # TODO OCCI POST to action reboot
-        server = @openstack.servers.get(server_id)
+        server = @occi.servers.get(server_id)
         soft_reboot(server)
       end
     end
 
     ##
-    # Configures networking on existing OpenStack server
-    # @param [String] server_id Running OpenStack server id
+    # Configures networking on existing compute instance
+    # @param [String] server_id Running OCCI server id
     # @param [Hash] network_spec raw network spec passed by director
     def configure_networks(server_id, network_spec)
       with_thread_name("configure_networks(#{server_id}, ...)") do
         @logger.info("Configuring `#{server_id}' to use the following " \
                      "network settings: #{network_spec.pretty_inspect}")
 
-        server = @openstack.servers.get(server_id)
+        server = @occi.servers.get(server_id)
         network_configurator = NetworkConfigurator.new(network_spec)
-        network_configurator.configure(@openstack, server)
+        network_configurator.configure(@occi, server)
 
         update_agent_settings(server) do |settings|
           settings["networks"] = network_spec
@@ -288,10 +280,10 @@ module Bosh::OcciCloud
     end
 
     ##
-    # Creates a new OpenStack volume
+    # Creates a new OCCI volume
     # @param [Integer] size disk size in MiB
     # @param [optional, String] server_id vm id of the VM that this disk will be attached to
-    # @return [String] created OpenStack volume id
+    # @return [String] created OCCI volume id
     def create_disk(size, server_id = nil)
       with_thread_name("create_disk(#{size}, #{server_id})") do
         unless size.kind_of?(Integer)
@@ -299,15 +291,15 @@ module Bosh::OcciCloud
         end
 
         if (size < 1024)
-          cloud_error("OpenStack CPI minimum disk size is 1 GiB")
+          cloud_error("OCCI CPI minimum disk size is 1 GiB")
         end
 
         if (size > 1024 * 1000)
-          cloud_error("OpenStack CPI maximum disk size is 1 TiB")
+          cloud_error("OCCI CPI maximum disk size is 1 TiB")
         end
 
         if server_id
-          server = @openstack.servers.get(server_id)
+          server = @occi.servers.get(server_id)
           availability_zone = server.availability_zone
         else
           availability_zone = DEFAULT_AVAILABILITY_ZONE
@@ -321,7 +313,7 @@ module Bosh::OcciCloud
         }
 
         @logger.info("Creating new volume...")
-        volume = @openstack.volumes.create(volume_params)
+        volume = @occi.volumes.create(volume_params)
         state = volume.status
 
         @logger.info("Creating new volume `#{volume.id}', state is `#{state}'")
@@ -332,11 +324,11 @@ module Bosh::OcciCloud
     end
 
     ##
-    # Deletes an OpenStack volume
+    # Deletes a volume instance
     # @param [String] disk_id volume id
     def delete_disk(disk_id)
       with_thread_name("delete_disk(#{disk_id})") do
-        volume = @openstack.volumes.get(disk_id)
+        volume = @occi.volumes.get(disk_id)
         state = volume.status
 
         cloud_error("Cannot delete volume `#{disk_id}', state is #{state}") if state.to_sym != :available
@@ -348,13 +340,13 @@ module Bosh::OcciCloud
     end
 
     ##
-    # Attaches an OpenStack volume to an OpenStack server
-    # @param [String] server_id Running OpenStack server id
+    # Attaches a volume instance to a compute instance
+    # @param [String] server_id Running OCCI server id
     # @param [String] disk_id volume id
     def attach_disk(server_id, disk_id)
       with_thread_name("attach_disk(#{server_id}, #{disk_id})") do
-        server = @openstack.servers.get(server_id)
-        volume = @openstack.volumes.get(disk_id)
+        server = @occi.servers.get(server_id)
+        volume = @occi.volumes.get(disk_id)
 
         device_name = attach_volume(server, volume)
 
@@ -367,13 +359,13 @@ module Bosh::OcciCloud
     end
 
     ##
-    # Detaches an OpenStack volume from an OpenStack server
-    # @param [String] server_id Running OpenStack server id
+    # Detaches a volume volume instance from a compute instance
+    # @param [String] server_id Running OCCI server id
     # @param [String] disk_id volume id
     def detach_disk(server_id, disk_id)
       with_thread_name("detach_disk(#{server_id}, #{disk_id})") do
-        server = @openstack.servers.get(server_id)
-        volume = @openstack.volumes.get(disk_id)
+        server = @occi.servers.get(server_id)
+        volume = @occi.volumes.get(disk_id)
 
         detach_volume(server, volume)
 
@@ -396,10 +388,10 @@ module Bosh::OcciCloud
 
     ##
     # Generates initial agent settings. These settings will be read by agent
-    # from OpenStack registry (also a BOSH component) on a target server. Disk
+    # from registry (also a BOSH component) on a target server. Disk
     # conventions for OpenStack are:
     # system disk: /dev/vda
-    # OpenStack volumes can be configured to map to other device names later (vdb
+    # Volumes can be configured to map to other device names later (vdb
     # through vdz, also some kernels will remap vd* to xvd*).
     #
     # @param [String] agent_id Agent id (will be picked up by agent to
@@ -441,8 +433,8 @@ module Bosh::OcciCloud
     end
 
     ##
-    # Soft reboots an OpenStack server
-    # @param [Fog::Compute::OpenStack::Server] server OpenStack server
+    # Soft reboots a compute instance
+    # @param occi comupute instance
     def soft_reboot(server)
       state = server.state
 
@@ -452,8 +444,8 @@ module Bosh::OcciCloud
     end
 
     ##
-    # Hard reboots an OpenStack server
-    # @param [Fog::Compute::OpenStack::Server] server OpenStack server
+    # Hard reboots a compute instance
+    # @param server occi comupte instance
     def hard_reboot(server)
       state = server.state
 
@@ -463,11 +455,11 @@ module Bosh::OcciCloud
     end
 
     ##
-    # Attaches an OpenStack volume to an OpenStack server
-    # @param [Fog::Compute::OpenStack::Server] server OpenStack server
-    # @param [Fog::Compute::OpenStack::Volume] volume OpenStack volume
+    # Attaches a volume instance to a compute instance
+    # @param server compute instance
+    # @param volume volume instance
     def attach_volume(server, volume)
-      volume_attachments = @openstack.get_server_volumes(server.id).body['volumeAttachments']
+      volume_attachments = @occi.get_server_volumes(server.id).body['volumeAttachments']
       device_names = Set.new(volume_attachments.collect! {|v| v["device"] })
       new_attachment = nil
 
@@ -494,11 +486,11 @@ module Bosh::OcciCloud
     end
 
     ##
-    # Detaches an OpenStack volume from an OpenStack server
-    # @param [Fog::Compute::OpenStack::Server] server OpenStack server
-    # @param [Fog::Compute::OpenStack::Volume] volume OpenStack volume
+    # Detaches an volume instance from a compute instance
+    # @param server compute instance
+    # @param volume volume instance
     def detach_volume(server, volume)
-      volume_attachments = @openstack.get_server_volumes(server.id).body['volumeAttachments']
+      volume_attachments = @occi.get_server_volumes(server.id).body['volumeAttachments']
       device_map = volume_attachments.collect! {|v| v["volumeId"] }
 
       if !device_map.include?(volume.id)
@@ -512,7 +504,7 @@ module Bosh::OcciCloud
     end
 
     ##
-    # Reads current server id from OpenStack metadata. We are assuming
+    # Reads current server id from metadata. We are assuming
     # server id cannot change while current process is running
     # and thus memoizing it.
     def current_instance_id
@@ -550,7 +542,7 @@ module Bosh::OcciCloud
         sleep(1)
       end
 
-      cloud_error("Cannot find OpenStack volume on current instance")
+      cloud_error("Cannot find volume on current instance")
     end
 
     def unpack_image(tmp_dir, image_path)
@@ -582,15 +574,6 @@ module Bosh::OcciCloud
     # be used to create all required data structures etc.
     #
     def validate_options
-      unless @options.has_key?("openstack") &&
-          @options["openstack"].is_a?(Hash) &&
-          @options["openstack"]["auth_url"] &&
-          @options["openstack"]["username"] &&
-          @options["openstack"]["api_key"] &&
-          @options["openstack"]["tenant"]
-        raise ArgumentError, "Invalid OpenStack configuration parameters"
-      end
-
       unless @options.has_key?("occi") &&
           @options["occi"].is_a?(Hash) &&
           @options["occi"]["token"] &&

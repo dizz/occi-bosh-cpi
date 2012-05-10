@@ -2,11 +2,11 @@
 
 module Bosh::OcciCloud
   ##
-  # Represents OpenStack server network config. OpenStack server has single NIC
+  # Represents OCCI server network config. OCCI server has single NIC
   # with dynamic IP address and (optionally) a single floating IP address
   # which server itself is not aware of (vip). Thus we should perform
   # a number of sanity checks for the network spec provided by director
-  # to make sure we don't apply something OpenStack doesn't understand how to
+  # to make sure we don't apply something OCCI doesn't understand how to
   # deal with.
   #
   class NetworkConfigurator
@@ -47,7 +47,7 @@ module Bosh::OcciCloud
             @vip_network = VipNetwork.new(name, spec)
           end
         else
-          cloud_error("Invalid network type `#{network_type}': OpenStack CPI " \
+          cloud_error("Invalid network type `#{network_type}': OCCI CPI " \
                       "can only handle `dynamic' and `vip' network types")
         end
 
@@ -58,11 +58,11 @@ module Bosh::OcciCloud
       end
     end
 
-    def configure(openstack, server)
-      @dynamic_network.configure(openstack, server)
+    def configure(occi, server)
+      @dynamic_network.configure(occi, server)
 
       if @vip_network
-        @vip_network.configure(openstack, server)
+        @vip_network.configure(occi, server)
       else
         # If there is no vip network we should disassociate any floating IP
         # currently held by server (as it might have had floating IP before)
@@ -70,7 +70,7 @@ module Bosh::OcciCloud
         # This is implemented in OCCI as shown here:
         # http://wiki.openstack.org/occi#Deallocate_Floating_IP_to_VM
         
-        addresses = openstack.addresses
+        addresses = occi.addresses
         addresses.each do |address|
           if address.instance_id == server.id
             @logger.info("Disassociating floating IP `#{address.ip}' " \
@@ -96,9 +96,9 @@ module Bosh::OcciCloud
     end
 
     ##
-    # To do this in OCCI list the groups registered in the QI
-    # See: http://wiki.openstack.org/occi#List_Security_Groups
     # Extracts the security groups from the network configuration
+    # Supported security groups can be validated:
+    # See: http://wiki.openstack.org/occi#List_Security_Groups
     # @param [Hash] network_spec Network specification
     # @raise [ArgumentError] if the security groups in the network_spec
     #   is not an Array
